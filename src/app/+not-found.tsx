@@ -7,50 +7,16 @@ import {
   useRouter,
   useSitemap,
 } from 'expo-router';
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ErrorBoundaryWrapper } from '../../__create/SharedErrorBoundary';
-
-interface ParentSitemap {
-  expoPages?: Array<{
-    id: string;
-    name: string;
-    filePath: string;
-    cleanRoute?: string;
-  }>;
-}
 
 function NotFoundScreen() {
   const router = useRouter();
   const params = useGlobalSearchParams();
   const expoSitemap = useSitemap();
-  const [sitemap, setSitemap] = useState<SitemapType | ParentSitemap | null>(expoSitemap);
 
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
-      const handler = (event: MessageEvent) => {
-        if (event.data.type === 'sandbox:sitemap') {
-          window.removeEventListener('message', handler);
-          setSitemap(event.data.sitemap);
-        }
-      };
-
-      window.parent.postMessage(
-        {
-          type: 'sandbox:sitemap',
-        },
-        '*'
-      );
-      window.addEventListener('message', handler);
-
-      return () => {
-        window.removeEventListener('message', handler);
-      };
-    }
-  }, []);
-
-  const isExpoSitemap = sitemap === expoSitemap;
+  const isExpoSitemap = true;
   const missingPath = params['not-found']?.[0] || '';
 
   const availableRoutes = useMemo(() => {
@@ -97,18 +63,6 @@ function NotFoundScreen() {
     }
   };
 
-  const handleCreatePage = useCallback(() => {
-    if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
-      window.parent.postMessage(
-        {
-          type: 'sandbox:web:create',
-          path: missingPath,
-          view: 'mobile',
-        },
-        '*'
-      );
-    }
-  }, [missingPath]);
   return (
     <>
       <Stack.Screen options={{ title: 'Page Not Found', headerShown: false }} />
@@ -135,48 +89,11 @@ function NotFoundScreen() {
 
             <Text style={styles.subtitle}>
               Looks like "<Text style={styles.boldText}>/{missingPath}</Text>" isn't part of your
-              project. But no worries, you've got options!
+              project. Use the routes below to navigate.
             </Text>
 
-            {typeof window !== 'undefined' && window.parent && window.parent !== window && (
-              <View style={styles.createPageContainer}>
-                <View style={styles.createPageContent}>
-                  <View style={styles.createPageTextContainer}>
-                    <Text style={styles.createPageTitle}>Build it from scratch</Text>
-                    <Text style={styles.createPageDescription}>
-                      Create a new screen to live at "/{missingPath}"
-                    </Text>
-                  </View>
-                  <View style={styles.createPageButtonContainer}>
-                    <TouchableOpacity
-                      onPress={() => handleCreatePage()}
-                      style={styles.createPageButton}
-                    >
-                      <Text style={styles.createPageButtonText}>Create Screen</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            )}
-
-            <Text style={styles.routesLabel}>Check out all your project's routes here ↓</Text>
-            {!isExpoSitemap && sitemap ? (
-              <View style={styles.pagesContainer}>
-                <View style={styles.pagesListContainer}>
-                  <Text style={styles.pagesLabel}>MOBILE</Text>
-                  {((sitemap as ParentSitemap).expoPages || []).map((route, index: number) => (
-                    <TouchableOpacity
-                      key={route.id}
-                      onPress={() => handleNavigate(route.cleanRoute || '')}
-                      style={styles.pageButton}
-                    >
-                      <Text style={styles.routeName}>{route.name}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            ) : (
-              <View style={styles.pagesContainer}>
+            <Text style={styles.routesLabel}>Available routes:</Text>
+            <View style={styles.pagesContainer}>
                 <View style={styles.pagesListContainer}>
                   <Text style={styles.pagesLabel}>MOBILE</Text>
                   {(availableRoutes as SitemapType[]).map((route: SitemapType, index: number) => {
@@ -218,8 +135,7 @@ function NotFoundScreen() {
                     );
                   })}
                 </View>
-              </View>
-            )}
+            </View>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -430,10 +346,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default () => {
-  return (
-    <ErrorBoundaryWrapper>
-      <NotFoundScreen />
-    </ErrorBoundaryWrapper>
-  );
-};
+export default NotFoundScreen;

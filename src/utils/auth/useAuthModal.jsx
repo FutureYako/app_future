@@ -34,8 +34,9 @@ export const AuthModal = () => {
   const { auth } = useAuthStore();
 
   const snapPoints = useMemo(() => ['100%'], []);
-  const proxyURL = process.env.EXPO_PUBLIC_PROXY_BASE_URL;
-  const baseURL = process.env.EXPO_PUBLIC_BASE_URL;
+  // Configure your auth backend: EXPO_PUBLIC_AUTH_PROXY_URL (web iframe), EXPO_PUBLIC_AUTH_BASE_URL (auth API)
+  const proxyURL = process.env.EXPO_PUBLIC_AUTH_PROXY_URL;
+  const baseURL = process.env.EXPO_PUBLIC_AUTH_BASE_URL;
   if (!proxyURL && !baseURL) {
     return null;
   }

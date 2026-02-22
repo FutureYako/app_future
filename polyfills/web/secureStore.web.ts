@@ -42,7 +42,7 @@ function isValidValue(value: string) {
 }
 
 function getStorageKey(key: string): string {
-	return `_create_secure_store_${key}`;
+	return `_futureyako_secure_store_${key}`;
 }
 
 export async function isAvailableAsync(): Promise<boolean> {

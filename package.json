@@ -2,9 +2,7 @@
   "name": "mobile",
   "main": "index",
   "version": "1.0.0",
-  "scripts": {
-    "postinstall": "patch-package"
-  },
+  "scripts": {},
   "dependencies": {
     "@expo-google-fonts/dev": "^0.4.7",
     "@expo/ngrok": "4.1.3",

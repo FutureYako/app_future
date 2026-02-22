@@ -1,6 +1,7 @@
 {
   "expo": {
-    "name": "Anything mobile app",
+    "name": "Future Yako",
+    "slug": "future-yako",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -21,15 +22,10 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
-      "package": "xyz.create.CreateExpoEnvironment"
+      "package": "com.futureyako.app"
     },
     "plugins": [
-      [
-        "expo-router",
-        {
-          "sitemap": false
-        }
-      ],
+      ["expo-router", { "sitemap": false }],
       [
         "expo-splash-screen",
         {
@@ -39,17 +35,13 @@
         }
       ],
       "expo-audio",
-      [
-        "expo-build-properties",
-        {
-          "ios": {
-            "useFrameworks": "static"
-          }
-        }
-      ],
+      ["expo-build-properties", { "ios": { "useFrameworks": "static" } }],
       [
         "expo-video",
-        { "supportsBackgroundPlayback": true, "supportsPictureInPicture": true }
+        {
+          "supportsBackgroundPlayback": true,
+          "supportsPictureInPicture": true
+        }
       ],
       "expo-font",
       "expo-secure-store",
