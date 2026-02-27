@@ -13,11 +13,13 @@ import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { Percent, DollarSign, CheckCircle } from "lucide-react-native";
 import useTheme from "@/utils/theme";
+import { useSettingsStore } from "@/store/settingsStore";
 
 export default function DeductionSettingsOnboarding() {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const router = useRouter();
+  const { setAll } = useSettingsStore();
 
   const [deductionType, setDeductionType] = useState("");
   const [amount, setAmount] = useState("");
@@ -44,37 +46,25 @@ export default function DeductionSettingsOnboarding() {
     }
 
     setLoading(true);
-    try {
-      const response = await fetch("/api/onboarding/deduction-settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          deductionType,
-          amount: numAmount,
-        }),
-      });
 
-      const data = await response.json();
+    setAll({
+      deduction_type: deductionType,
+      amount: numAmount,
+      is_enabled: true,
+    });
 
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to save settings");
-      }
+    setLoading(false);
 
-      Alert.alert(
-        "Welcome to Future Yako! 🎉",
-        "Your account is all set up. Start saving for your future today!",
-        [
-          {
-            text: "Get Started",
-            onPress: () => router.replace("/(tabs)/dashboard"),
-          },
-        ],
-      );
-    } catch (error) {
-      Alert.alert("Error", error.message);
-    } finally {
-      setLoading(false);
-    }
+    Alert.alert(
+      "Welcome to Future Yako! 🎉",
+      "Your savings preference is set. Start saving for your future today!",
+      [
+        {
+          text: "Get Started",
+          onPress: () => router.replace("/(tabs)/dashboard"),
+        },
+      ],
+    );
   };
 
   return (

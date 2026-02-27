@@ -5,8 +5,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Switch,
-  ActivityIndicator,
-  Alert,
+  TextInput,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -20,83 +19,84 @@ import {
   Target,
   ChevronRight,
 } from "lucide-react-native";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import useTheme from "@/utils/theme";
+import { useSettingsStore } from "@/store/settingsStore";
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
-  const queryClient = useQueryClient();
+  const {
+    deduction_type,
+    amount,
+    is_enabled,
+    setDeductionType,
+    setAmount,
+    toggleEnabled,
+    duration_months,
+    setDurationMonths,
+  } = useSettingsStore();
+  const [localAmount, setLocalAmount] = React.useState(
+    amount != null ? String(amount) : "",
+  );
+  const [localDuration, setLocalDuration] = React.useState(
+    duration_months != null ? String(duration_months) : "6",
+  );
 
-  const { data: user } = useQuery({
-    queryKey: ["user"],
-    queryFn: async () => {
-      const res = await fetch("/api/user");
-      return res.json();
-    },
-  });
+  React.useEffect(() => {
+    setLocalAmount(amount != null ? String(amount) : "");
+  }, [amount]);
 
-  const { data: settings, isLoading: settingsLoading } = useQuery({
-    queryKey: ["settings"],
-    queryFn: async () => {
-      const res = await fetch("/api/settings");
-      return res.json();
-    },
-  });
+  React.useEffect(() => {
+    setLocalDuration(duration_months != null ? String(duration_months) : "6");
+  }, [duration_months]);
 
-  const updateSettings = useMutation({
-    mutationFn: async (newSettings) => {
-      const res = await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newSettings),
-      });
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["settings"] });
-    },
-  });
+  // simple prototype user data
+  const user = {
+    full_name: "Future Yako",
+    email: "futureyako@gmail.com",
+  };
 
   const toggleAutoDeduction = () => {
-    updateSettings.mutate({
-      ...settings,
-      is_enabled: !settings.is_enabled,
-    });
+    toggleEnabled();
   };
 
-  const changeDeductionValue = () => {
-    Alert.prompt(
-      "Set Deduction Amount",
-      `Current: ${settings.deduction_type === "percentage" ? settings.amount + "%" : "TZS " + settings.amount}`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Save",
-          onPress: (val) => {
-            const num = Number(val);
-            if (isNaN(num) || num < 0) return;
-            updateSettings.mutate({ ...settings, amount: num });
-          },
-        },
-      ],
-    );
+  const handleChangeDeductionType = (type) => {
+    if (!type || deduction_type === type) return;
+
+    let nextAmount = amount;
+
+    if (type === "percentage" && nextAmount > 100) {
+      nextAmount = 100;
+    }
+
+    setDeductionType(type);
+    setAmount(nextAmount);
   };
 
-  if (settingsLoading) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: "center",
-          alignItems: "center",
-          backgroundColor: theme.colors.background,
-        }}
-      >
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-      </View>
-    );
-  }
+  const handleAmountChange = (val) => {
+    setLocalAmount(val);
+
+    const num = Number(val);
+    if (isNaN(num) || num < 0) {
+      return;
+    }
+
+    if (deduction_type === "percentage" && num > 100) {
+      return;
+    }
+
+    setAmount(num);
+  };
+
+  const handleDurationChange = (val) => {
+    setLocalDuration(val);
+
+    const num = Number(val);
+    if (isNaN(num)) return;
+
+    const clamped = Math.max(6, Math.round(num));
+    setDurationMonths(clamped);
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
@@ -164,10 +164,20 @@ export default function ProfileScreen() {
                 fontSize: 18,
                 fontWeight: "700",
                 color: theme.colors.text,
-                marginBottom: 20,
+                marginBottom: 4,
               }}
             >
-              Auto Habit Settings
+              Auto-Saving Rule
+            </Text>
+            <Text
+              style={{
+                fontSize: 12,
+                color: theme.colors.textSecondary,
+                marginBottom: 16,
+              }}
+            >
+              Decide how much should go straight to your portfolio every time
+              you receive money.
             </Text>
 
             <View
@@ -185,11 +195,11 @@ export default function ProfileScreen() {
                 <Text
                   style={{ fontSize: 12, color: theme.colors.textSecondary }}
                 >
-                  Deduct money on every deposit
+                  When ON, we auto-save from each BOOM or salary.
                 </Text>
               </View>
               <Switch
-                value={settings?.is_enabled}
+                value={is_enabled}
                 onValueChange={toggleAutoDeduction}
                 trackColor={{
                   false: theme.colors.border,
@@ -198,45 +208,275 @@ export default function ProfileScreen() {
               />
             </View>
 
-            <TouchableOpacity
-              onPress={changeDeductionValue}
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-                backgroundColor: theme.colors.surfaceSecondary,
-                padding: 16,
-                borderRadius: 16,
-              }}
-            >
-              <View>
-                <Text
-                  style={{ fontSize: 12, color: theme.colors.textSecondary }}
-                >
-                  Deduction Rate
-                </Text>
-                <Text
+            <View style={{ marginBottom: 16 }}>
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontWeight: "600",
+                  color: theme.colors.text,
+                  marginBottom: 8,
+                }}
+              >
+                Deduction Type
+              </Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                }}
+              >
+                <TouchableOpacity
+                  onPress={() => handleChangeDeductionType("percentage")}
                   style={{
-                    fontSize: 18,
-                    fontWeight: "700",
-                    color: theme.colors.text,
+                    flex: 1,
+                    paddingVertical: 10,
+                    paddingHorizontal: 12,
+                    borderRadius: 12,
+                    borderWidth: 2,
+                    borderColor:
+                      deduction_type === "percentage"
+                        ? theme.colors.primary
+                        : theme.colors.borderLight,
+                    backgroundColor:
+                      deduction_type === "percentage"
+                        ? theme.colors.primary + "10"
+                        : theme.colors.surfaceSecondary,
+                    marginRight: 8,
+                    alignItems: "center",
                   }}
                 >
-                  {settings?.deduction_type === "percentage"
-                    ? `${settings?.amount}%`
-                    : `TZS ${Number(settings?.amount).toLocaleString()}`}
+                  <Text
+                    style={{
+                      fontWeight: "700",
+                      color:
+                        deduction_type === "percentage"
+                          ? theme.colors.primary
+                          : theme.colors.text,
+                    }}
+                  >
+                    Percentage
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => handleChangeDeductionType("fixed")}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 10,
+                    paddingHorizontal: 12,
+                    borderRadius: 12,
+                    borderWidth: 2,
+                    borderColor:
+                      deduction_type === "fixed"
+                        ? theme.colors.primary
+                        : theme.colors.borderLight,
+                    backgroundColor:
+                      deduction_type === "fixed"
+                        ? theme.colors.primary + "10"
+                        : theme.colors.surfaceSecondary,
+                    marginLeft: 8,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontWeight: "700",
+                      color:
+                        deduction_type === "fixed"
+                          ? theme.colors.primary
+                          : theme.colors.text,
+                    }}
+                  >
+                    Fixed
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View
+              style={{
+                marginTop: 8,
+                backgroundColor: theme.colors.surfaceSecondary,
+                borderRadius: 16,
+                padding: 16,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontWeight: "600",
+                  color: theme.colors.text,
+                  marginBottom: 6,
+                }}
+              >
+                Deduction amount
+              </Text>
+              <Text
+                style={{ fontSize: 12, color: theme.colors.textSecondary }}
+              >
+                {deduction_type === "percentage"
+                  ? "Type the percentage of each income you want to save."
+                  : "Type the exact TZS amount you want to save from each income."}
+              </Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginTop: 12,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: theme.colors.borderLight,
+                  backgroundColor: theme.colors.surface,
+                  paddingHorizontal: 12,
+                  paddingVertical: 4,
+                }}
+              >
+                <Target
+                  size={18}
+                  color={theme.colors.primary}
+                  style={{ marginRight: 10 }}
+                />
+                <TextInput
+                  style={{
+                    flex: 1,
+                    color: theme.colors.text,
+                    fontSize: 18,
+                    fontWeight: "700",
+                    paddingVertical: 8,
+                    textAlign: "right",
+                  }}
+                  keyboardType="numeric"
+                  placeholder={
+                    deduction_type === "percentage" ? "10" : "50000"
+                  }
+                  placeholderTextColor={theme.colors.textMuted}
+                  value={localAmount}
+                  onChangeText={handleAmountChange}
+                />
+                <Text
+                  style={{
+                    marginLeft: 6,
+                    color: theme.colors.textSecondary,
+                    fontWeight: "600",
+                  }}
+                >
+                  {deduction_type === "percentage" ? "%" : "TZS"}
                 </Text>
+              </View>
+            </View>
+
+            <View
+              style={{
+                marginTop: 12,
+                backgroundColor: theme.colors.surfaceSecondary,
+                borderRadius: 16,
+                padding: 16,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontWeight: "600",
+                  color: theme.colors.text,
+                  marginBottom: 6,
+                }}
+              >
+                Duration
+              </Text>
+              <Text
+                style={{ fontSize: 12, color: theme.colors.textSecondary }}
+              >
+                Minimum of 6 months so you can build a strong saving habit.
+              </Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginTop: 12,
+                }}
+              >
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: theme.colors.borderLight,
+                    backgroundColor: theme.colors.surface,
+                    paddingHorizontal: 12,
+                    paddingVertical: 4,
+                    flex: 1,
+                  }}
+                >
+                  <TextInput
+                    style={{
+                      flex: 1,
+                      color: theme.colors.text,
+                      fontSize: 18,
+                      fontWeight: "700",
+                      paddingVertical: 8,
+                      textAlign: "right",
+                    }}
+                    keyboardType="numeric"
+                    placeholder="6"
+                    placeholderTextColor={theme.colors.textMuted}
+                    value={localDuration}
+                    onChangeText={handleDurationChange}
+                  />
+                  <Text
+                    style={{
+                      marginLeft: 6,
+                      color: theme.colors.textSecondary,
+                      fontWeight: "600",
+                    }}
+                  >
+                    months
+                  </Text>
+                </View>
               </View>
               <View
                 style={{
-                  backgroundColor: theme.colors.primary,
-                  padding: 8,
-                  borderRadius: 10,
+                  flexDirection: "row",
+                  marginTop: 10,
+                  justifyContent: "flex-end",
                 }}
               >
-                <Target size={18} color="#FFFFFF" />
+                {[6, 12, 24].map((preset) => (
+                  <TouchableOpacity
+                    key={preset}
+                    onPress={() => handleDurationChange(String(preset))}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 6,
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      borderColor:
+                        duration_months === preset
+                          ? theme.colors.primary
+                          : theme.colors.borderLight,
+                      backgroundColor:
+                        duration_months === preset
+                          ? theme.colors.primary + "10"
+                          : "transparent",
+                      marginLeft: 6,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        fontWeight: "600",
+                        color:
+                          duration_months === preset
+                            ? theme.colors.primary
+                            : theme.colors.textSecondary,
+                      }}
+                    >
+                      {preset}m
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
-            </TouchableOpacity>
+            </View>
           </View>
 
           {/* Other Settings */}

@@ -1,12 +1,15 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  ActivityIndicator,
   Alert,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -21,10 +24,11 @@ import {
   Bell,
   PiggyBank,
 } from "lucide-react-native";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import useTheme from "@/utils/theme";
 import { useRouter } from "expo-router";
 import { useRequireAuth } from "@/utils/auth/useAuth";
+import { useSettingsStore } from "@/store/settingsStore";
+import { useGoalsStore } from "@/store/goalsStore";
 
 export default function DashboardScreen() {
   useRequireAuth(); // Require authentication for this screen
@@ -32,76 +36,80 @@ export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const router = useRouter();
-  const queryClient = useQueryClient();
+  const { deduction_type, amount: deductionAmount, is_enabled } =
+    useSettingsStore();
+  const { goals, distributeDeposit } = useGoalsStore();
 
-  const { data: user, isLoading: userLoading } = useQuery({
-    queryKey: ["user"],
-    queryFn: async () => {
-      const res = await fetch("/api/user");
-      return res.json();
-    },
+  const [showAddFundsModal, setShowAddFundsModal] = useState(false);
+  const [incomeType, setIncomeType] = useState("salary");
+  const [incomeAmount, setIncomeAmount] = useState("");
+  // simple prototype user
+  const [user] = useState({
+    full_name: "Future Yako",
   });
 
-  const { data: goals = [], isLoading: goalsLoading } = useQuery({
-    queryKey: ["goals"],
-    queryFn: async () => {
-      const res = await fetch("/api/goals");
-      return res.json();
-    },
-  });
-
-  const { data: transactions = [], isLoading: txLoading } = useQuery({
-    queryKey: ["transactions"],
-    queryFn: async () => {
-      const res = await fetch("/api/transactions");
-      return res.json();
-    },
-  });
-
-  const simulateDeposit = useMutation({
-    mutationFn: async (amount) => {
-      const res = await fetch("/api/simulate-deposit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount }),
-      });
-      return res.json();
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["goals"] });
-      queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      Alert.alert(
-        "Success",
-        `Received TZS ${data.deducted.toLocaleString()} for your ${data.goal} goal!`,
-      );
-    },
-  });
+  const [transactions, setTransactions] = useState([]);
 
   const totalBalance = goals.reduce(
     (acc, goal) => acc + Number(goal.current_amount),
     0,
   );
 
-  const onRefresh = React.useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ["user"] });
-    queryClient.invalidateQueries({ queryKey: ["goals"] });
-    queryClient.invalidateQueries({ queryKey: ["transactions"] });
-  }, [queryClient]);
+  const onRefresh = useCallback(() => {
+    // no-op, we keep everything in memory for the prototype
+  }, []);
 
-  if (userLoading || goalsLoading || txLoading) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: "center",
-          alignItems: "center",
-          backgroundColor: theme.colors.background,
-        }}
-      >
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-      </View>
+  const handleDeductFromIncome = () => {
+    const income = Number(incomeAmount);
+
+    if (isNaN(income) || income <= 0) {
+      Alert.alert("Error", "Please enter a valid amount");
+      return;
+    }
+
+    if (!is_enabled) {
+      Alert.alert(
+        "Auto deduction is off",
+        "Turn on automatic deduction in your profile to save from each income.",
+      );
+      return;
+    }
+
+    let deducted = 0;
+
+    if (deduction_type === "percentage") {
+      deducted = (income * deductionAmount) / 100;
+    } else {
+      deducted = Math.min(deductionAmount, income);
+    }
+
+    if (deducted <= 0) {
+      Alert.alert("Nothing to save", "Update your deduction settings first.");
+      return;
+    }
+
+    // Distribute this deducted amount across goals according to their allocation_pct
+    distributeDeposit(deducted);
+
+    setTransactions((prev) => [
+      {
+        id: String(prev.length + 1),
+        type: "deposit",
+        amount: deducted,
+        description: `Auto-saved from ${incomeType.toUpperCase()}`,
+        created_at: new Date().toISOString(),
+      },
+      ...prev,
+    ]);
+
+    setShowAddFundsModal(false);
+    setIncomeAmount("");
+
+    Alert.alert(
+      "Success",
+      `TZS ${deducted.toLocaleString()} has been moved to your portfolio savings.`,
     );
-  }
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
@@ -173,15 +181,58 @@ export default function DashboardScreen() {
               elevation: 8,
             }}
           >
-            <Text
+            <View
               style={{
-                color: "rgba(255,255,255,0.8)",
-                fontSize: 14,
-                fontWeight: "600",
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
               }}
             >
-              Total Savings
-            </Text>
+              <View>
+                <Text
+                  style={{
+                    color: "rgba(255,255,255,0.8)",
+                    fontSize: 14,
+                    fontWeight: "600",
+                  }}
+                >
+                  Total Savings
+                </Text>
+                <Text
+                  style={{
+                    color: "rgba(255,255,255,0.8)",
+                    fontSize: 12,
+                    marginTop: 4,
+                  }}
+                >
+                  {is_enabled
+                    ? deduction_type === "percentage"
+                      ? `You auto-save ${deductionAmount}% of every income`
+                      : `You auto-save TZS ${deductionAmount.toLocaleString()} from every income`
+                    : "Auto-saving is off. Turn it on in your profile."}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => router.push("/(tabs)/profile")}
+                style={{
+                  paddingVertical: 6,
+                  paddingHorizontal: 10,
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.5)",
+                }}
+              >
+                <Text
+                  style={{
+                    color: "#FFFFFF",
+                    fontSize: 11,
+                    fontWeight: "600",
+                  }}
+                >
+                  Edit rule
+                </Text>
+              </TouchableOpacity>
+            </View>
             <View
               style={{
                 flexDirection: "row",
@@ -203,8 +254,7 @@ export default function DashboardScreen() {
               }}
             >
               <TouchableOpacity
-                onPress={() => simulateDeposit.mutate(1200000)}
-                disabled={simulateDeposit.isLoading}
+                onPress={() => setShowAddFundsModal(true)}
                 style={{
                   backgroundColor: "rgba(255,255,255,0.2)",
                   paddingVertical: 10,
@@ -395,16 +445,25 @@ export default function DashboardScreen() {
 
         {/* Recent Transactions */}
         <View style={{ paddingHorizontal: 20 }}>
-          <Text
-            style={{
-              fontSize: 18,
-              fontWeight: "700",
-              color: theme.colors.text,
-              marginBottom: 16,
-            }}
-          >
-            Recent Activity
-          </Text>
+            <Text
+              style={{
+                fontSize: 18,
+                fontWeight: "700",
+                color: theme.colors.text,
+                marginBottom: 4,
+              }}
+            >
+              Recent Activity
+            </Text>
+            <Text
+              style={{
+                fontSize: 12,
+                color: theme.colors.textSecondary,
+                marginBottom: 16,
+              }}
+            >
+              See how much has been auto-saved from your BOOM and salary.
+            </Text>
           {transactions.length === 0 ? (
             <View style={{ alignItems: "center", padding: 20 }}>
               <Text style={{ color: theme.colors.textSecondary }}>
@@ -471,6 +530,260 @@ export default function DashboardScreen() {
           )}
         </View>
       </ScrollView>
+
+      <Modal
+        visible={showAddFundsModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAddFundsModal(false)}
+      >
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <View
+            style={{
+              flex: 1,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <View
+              style={{
+                width: "90%",
+                backgroundColor: theme.colors.surface,
+                borderRadius: 20,
+                padding: 20,
+              }}
+            >
+            <Text
+              style={{
+                fontSize: 18,
+                fontWeight: "700",
+                color: theme.colors.text,
+                marginBottom: 4,
+              }}
+            >
+              Add New Income
+            </Text>
+            <Text
+              style={{
+                fontSize: 13,
+                color: theme.colors.textSecondary,
+                marginBottom: 4,
+              }}
+            >
+              1. Choose BOOM or SALARY.
+            </Text>
+            <Text
+              style={{
+                fontSize: 13,
+                color: theme.colors.textSecondary,
+                marginBottom: 4,
+              }}
+            >
+              2. Enter the full amount you received.
+            </Text>
+            <Text
+              style={{
+                fontSize: 13,
+                color: theme.colors.textSecondary,
+                marginBottom: 12,
+              }}
+            >
+              3. We automatically move your part to savings before you touch it.
+            </Text>
+
+            <Text
+              style={{
+                fontSize: 14,
+                fontWeight: "600",
+                color: theme.colors.text,
+                marginBottom: 8,
+              }}
+            >
+              Income Type
+            </Text>
+
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                marginBottom: 20,
+              }}
+            >
+              <TouchableOpacity
+                onPress={() => setIncomeType("boom")}
+                style={{
+                  flex: 1,
+                  paddingVertical: 12,
+                  paddingHorizontal: 12,
+                  borderRadius: 12,
+                  borderWidth: 2,
+                  borderColor:
+                    incomeType === "boom"
+                      ? theme.colors.primary
+                      : theme.colors.borderLight,
+                  backgroundColor:
+                    incomeType === "boom"
+                      ? theme.colors.primary + "10"
+                      : theme.colors.surfaceSecondary,
+                  marginRight: 8,
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={{
+                    fontWeight: "700",
+                    color:
+                      incomeType === "boom"
+                        ? theme.colors.primary
+                        : theme.colors.text,
+                  }}
+                >
+                  BOOM
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 11,
+                    marginTop: 2,
+                    color: theme.colors.textSecondary,
+                  }}
+                >
+                  Students
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setIncomeType("salary")}
+                style={{
+                  flex: 1,
+                  paddingVertical: 12,
+                  paddingHorizontal: 12,
+                  borderRadius: 12,
+                  borderWidth: 2,
+                  borderColor:
+                    incomeType === "salary"
+                      ? theme.colors.primary
+                      : theme.colors.borderLight,
+                  backgroundColor:
+                    incomeType === "salary"
+                      ? theme.colors.primary + "10"
+                      : theme.colors.surfaceSecondary,
+                  marginLeft: 8,
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={{
+                    fontWeight: "700",
+                    color:
+                      incomeType === "salary"
+                        ? theme.colors.primary
+                        : theme.colors.text,
+                  }}
+                >
+                  SALARY
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 11,
+                    marginTop: 2,
+                    color: theme.colors.textSecondary,
+                  }}
+                >
+                  Employees
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text
+              style={{
+                fontSize: 14,
+                fontWeight: "600",
+                color: theme.colors.text,
+                marginBottom: 8,
+              }}
+            >
+              Amount Earned (TZS)
+            </Text>
+            <View
+              style={{
+                backgroundColor: theme.colors.surfaceSecondary,
+                borderRadius: 12,
+                paddingHorizontal: 12,
+                paddingVertical: 4,
+                borderWidth: 1,
+                borderColor: theme.colors.borderLight,
+              }}
+            >
+              <TextInput
+                style={{
+                  color: theme.colors.text,
+                  fontSize: 20,
+                  fontWeight: "700",
+                  paddingVertical: 8,
+                  textAlign: "center",
+                }}
+                placeholder="500000"
+                placeholderTextColor={theme.colors.textMuted}
+                value={incomeAmount}
+                onChangeText={setIncomeAmount}
+                keyboardType="numeric"
+              />
+            </View>
+
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "flex-end",
+                  marginTop: 24,
+                }}
+              >
+                <TouchableOpacity
+                  onPress={() => setShowAddFundsModal(false)}
+                  style={{
+                    paddingVertical: 10,
+                    paddingHorizontal: 16,
+                    borderRadius: 12,
+                    marginRight: 8,
+                    backgroundColor: theme.colors.surfaceSecondary,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: theme.colors.textSecondary,
+                      fontWeight: "600",
+                    }}
+                  >
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={handleDeductFromIncome}
+                  style={{
+                    paddingVertical: 10,
+                    paddingHorizontal: 20,
+                    borderRadius: 12,
+                    backgroundColor: theme.colors.primary,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: "#FFFFFF",
+                      fontWeight: "700",
+                    }}
+                  >
+                    Deduct
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
