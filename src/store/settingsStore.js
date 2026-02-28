@@ -28,5 +28,13 @@ export const useSettingsStore = create((set) => ({
           ? settings.duration_months
           : 6,
     }),
+
+  resetToDemo: () =>
+    set({
+      deduction_type: "percentage",
+      amount: 10,
+      is_enabled: true,
+      duration_months: 6,
+    }),
 }));
 

@@ -5,6 +5,7 @@ import {
   TrendingUp,
   Receipt,
   User,
+  Bot,
 } from "lucide-react-native";
 import useTheme from "@/utils/theme";
 
@@ -56,6 +57,13 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => (
             <TrendingUp color={color} size={size} />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="mr-money"
+        options={{
+          title: "Mr Money",
+          tabBarIcon: ({ color, size }) => <Bot color={color} size={size} />,
         }}
       />
       <Tabs.Screen

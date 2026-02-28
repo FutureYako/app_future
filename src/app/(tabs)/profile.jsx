@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Switch,
   TextInput,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -18,13 +19,18 @@ import {
   CreditCard,
   Target,
   ChevronRight,
+  RotateCcw,
 } from "lucide-react-native";
+import { useQueryClient } from "@tanstack/react-query";
 import useTheme from "@/utils/theme";
 import { useSettingsStore } from "@/store/settingsStore";
+import { useGoalsStore } from "@/store/goalsStore";
+import { useDemoResetStore } from "@/store/demoResetStore";
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
+  const queryClient = useQueryClient();
   const {
     deduction_type,
     amount,
@@ -35,6 +41,29 @@ export default function ProfileScreen() {
     duration_months,
     setDurationMonths,
   } = useSettingsStore();
+  const resetGoals = useGoalsStore((s) => s.resetGoals);
+
+  const handleStartFresh = () => {
+    Alert.alert(
+      "Start fresh for next demo",
+      "This will reset savings (goals), auto-saving settings, and investment demo data so you can explain the app from scratch to the next person. Continue?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Yes, start fresh",
+          style: "destructive",
+          onPress: () => {
+            resetGoals();
+            useSettingsStore.getState().resetToDemo();
+            useDemoResetStore.getState().doReset();
+            queryClient.invalidateQueries({ queryKey: ["investments"] });
+            Alert.alert("Done", "App reset. You can now demo from a fresh state for the next person.");
+          },
+        },
+      ]
+    );
+  };
+
   const [localAmount, setLocalAmount] = React.useState(
     amount != null ? String(amount) : "",
   );
@@ -528,6 +557,31 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             ))}
           </View>
+
+          {/* Start fresh for demo */}
+          <TouchableOpacity
+            onPress={handleStartFresh}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 18,
+              backgroundColor: theme.colors.surface,
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: theme.colors.secondary + "50",
+              marginBottom: 16,
+            }}
+          >
+            <RotateCcw
+              size={20}
+              color={theme.colors.secondary}
+              style={{ marginRight: 10 }}
+            />
+            <Text style={{ color: theme.colors.secondary, fontWeight: "700" }}>
+              Start fresh for next demo
+            </Text>
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={{

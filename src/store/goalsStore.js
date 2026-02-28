@@ -167,5 +167,7 @@ export const useGoalsStore = create((set) => ({
 
       return { goals: updatedGoals };
     }),
+
+  resetGoals: () => set({ goals: [] }),
 }));
 

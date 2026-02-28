@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -23,12 +23,15 @@ import {
   Receipt,
   Bell,
   PiggyBank,
+  Bot,
+  Sparkles,
 } from "lucide-react-native";
 import useTheme from "@/utils/theme";
 import { useRouter } from "expo-router";
 import { useRequireAuth } from "@/utils/auth/useAuth";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useGoalsStore } from "@/store/goalsStore";
+import { useDemoResetStore } from "@/store/demoResetStore";
 
 export default function DashboardScreen() {
   useRequireAuth(); // Require authentication for this screen
@@ -39,6 +42,7 @@ export default function DashboardScreen() {
   const { deduction_type, amount: deductionAmount, is_enabled } =
     useSettingsStore();
   const { goals, distributeDeposit } = useGoalsStore();
+  const resetKey = useDemoResetStore((s) => s.resetKey);
 
   const [showAddFundsModal, setShowAddFundsModal] = useState(false);
   const [incomeType, setIncomeType] = useState("salary");
@@ -49,6 +53,10 @@ export default function DashboardScreen() {
   });
 
   const [transactions, setTransactions] = useState([]);
+
+  useEffect(() => {
+    if (resetKey > 0) setTransactions([]);
+  }, [resetKey]);
 
   const totalBalance = goals.reduce(
     (acc, goal) => acc + Number(goal.current_amount),
@@ -332,6 +340,64 @@ export default function DashboardScreen() {
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* Mr Money - Financial AI Advisor */}
+        <TouchableOpacity
+          onPress={() => router.push("/(tabs)/mr-money")}
+          style={{ paddingHorizontal: 20, marginBottom: 24 }}
+          activeOpacity={0.9}
+        >
+          <View
+            style={{
+              backgroundColor: theme.colors.surface,
+              borderRadius: 20,
+              padding: 20,
+              borderWidth: 1,
+              borderColor: theme.colors.borderLight,
+              flexDirection: "row",
+              alignItems: "center",
+              overflow: "hidden",
+            }}
+          >
+            <View
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 18,
+                backgroundColor: theme.colors.primary + "20",
+                alignItems: "center",
+                justifyContent: "center",
+                marginRight: 16,
+              }}
+            >
+              <Bot size={28} color={theme.colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
+                <Text
+                  style={{
+                    fontSize: 18,
+                    fontWeight: "700",
+                    color: theme.colors.text,
+                    marginRight: 6,
+                  }}
+                >
+                  Mr Money
+                </Text>
+                <Sparkles size={16} color={theme.colors.primary} />
+              </View>
+              <Text
+                style={{
+                  fontSize: 13,
+                  color: theme.colors.textSecondary,
+                }}
+              >
+                Your financial AI advisor — savings, investments, tax & more
+              </Text>
+            </View>
+            <ChevronRight size={22} color={theme.colors.textSecondary} />
+          </View>
+        </TouchableOpacity>
 
         {/* Goals Preview */}
         <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
